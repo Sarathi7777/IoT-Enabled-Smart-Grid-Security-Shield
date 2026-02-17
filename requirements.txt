@@ -5,3 +5,7 @@ numpy
 joblib
 fpdf
 tensorflow
+folium
+streamlit-folium
+plotly
+google-generativeai

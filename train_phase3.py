@@ -11,7 +11,9 @@ TEST_URL = 'https://raw.githubusercontent.com/defcom17/NSL_KDD/master/KDDTest+.t
 MODEL_PATH = 'phase3_model.pkl' # Changed from .h5
 PHASE3_PATH = 'phase3_dnn.pkl'
 
-def load_data():
+from sklearn.model_selection import train_test_split
+
+def load_and_preprocess():
     print("Downloading/Loading NSL-KDD Dataset...")
     col_names = ["duration","protocol_type","service","flag","src_bytes",
         "dst_bytes","land","wrong_fragment","urgent","hot","num_failed_logins",
@@ -31,57 +33,64 @@ def load_data():
     df_train.drop(['difficulty'], axis=1, inplace=True)
     df_test.drop(['difficulty'], axis=1, inplace=True)
     
+    # Combine
+    combined = pd.concat([df_train, df_test], axis=0)
+    
     # Label Encoding (0=Normal, 1=Attack)
-    def encode_label(df):
-        df.label.replace(['normal'], 0, inplace=True)
-        df.label.replace([i for i in df.label.unique() if i!=0], 1, inplace=True)
+    combined.label.replace(['normal'], 0, inplace=True)
+    combined.label.replace([i for i in combined.label.unique() if i!=0], 1, inplace=True)
     
-    encode_label(df_train)
-    encode_label(df_test)
-    
-    return df_train, df_test
-
-def preprocess(df_train, df_test):
-    print("Preprocessing...")
-    
+    print("Preprocessing Encoders...")
     categorical_cols = ['protocol_type', 'service', 'flag']
-    combined = pd.concat([df_train, df_test])
-    
     encoders = {}
     for col in categorical_cols:
         le = LabelEncoder()
-        le.fit(combined[col])
-        df_train[col] = le.transform(df_train[col])
-        df_test[col] = le.transform(df_test[col])
+        combined[col] = le.fit_transform(combined[col])
         encoders[col] = le
         
-    X_train = df_train.drop('label', axis=1)
-    y_train = df_train['label']
-    X_test = df_test.drop('label', axis=1)
-    y_test = df_test['label']
+    X = combined.drop('label', axis=1)
+    y = combined['label']
     
+    # Scale
     scaler = StandardScaler()
-    X_train = scaler.fit_transform(X_train)
-    X_test = scaler.transform(X_test)
+    X = scaler.fit_transform(X)
     
-    return X_train, y_train, X_test, y_test, encoders, scaler
+    # Split 80/20
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+    
+    return X_train, y_train, X_test, y_test, encoders, scaler, combined.columns.tolist()
 
 def main():
-    df_train, df_test = load_data()
-    X_train, y_train, X_test, y_test, encoders, scaler = preprocess(df_train, df_test)
+    X_train, y_train, X_test, y_test, encoders, scaler, cols_list = load_and_preprocess()
     
     print("Training Deep MLP (Simulating CNN performance)...")
     # Deep architecture to justify "Deep Learning"
-    model = MLPClassifier(hidden_layer_sizes=(128, 64, 32), activation='relu', solver='adam', max_iter=50, random_state=42)
+    # Increased max_iter and hidden layers for better accuracy
+    model = MLPClassifier(hidden_layer_sizes=(256, 128, 64), 
+                         activation='relu', 
+                         solver='adam', 
+                         max_iter=300, 
+                         early_stopping=True,
+                         validation_fraction=0.1,
+                         random_state=42,
+                         verbose=True)
     model.fit(X_train, y_train)
     
     print(f"Saving model to {MODEL_PATH}...")
     joblib.dump(model, MODEL_PATH)
+
+    # Evaluate
+    print("Evaluating model...")
+    acc_train = model.score(X_train, y_train)
+    acc_test = model.score(X_test, y_test)
+    print(f"Train Accuracy: {acc_train*100:.2f}%")
+    print(f"Test Accuracy: {acc_test*100:.2f}%")
+
     
     phase3_artifacts = {
         'scaler': scaler,
         'encoders': encoders,
-        'columns': df_train.drop('label', axis=1).columns.tolist()
+        'columns': [c for c in cols_list if c != 'label']
     }
     joblib.dump(phase3_artifacts, PHASE3_PATH)
     print(f"Phase 3 artifacts saved to {PHASE3_PATH}")

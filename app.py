@@ -19,14 +19,19 @@ with col1:
     
     This system protects IoT-enabled Smart Grids from cyber attacks using Advanced Machine Learning and Deep Learning.
     
-    #### 🚀 Core Features (Phase 3 Enriched):
+    #### 🚀 Core Features:
     - **Live Monitoring**: Real-time packet analysis & attack simulation.
     - **Deep Learning**: 1D-CNN Integration for high-accuracy detection.
     - **Forensics**: Automated PDF Reporting for security audits.
     - **Adversarial Simulation**: Test system robustness against DoS & Probing.
     - **XAI**: Model Comparison & Explainability.
     
-    **Get Started:** Use the sidebar to navigate to the **Monitor** or **Analytics**.
+    #### ✨ New Enhancements:
+    - **🤖 AI Security Assistant**: Interactive chatbot for grid status & threat intel.
+    - **🌍 Geospatial Threat Map**: Visualize global attack origins.
+    - **🛡️ Mitigation Action Center**: Playbook & response actions for active threats.
+    
+    **Get Started:** Use the sidebar to navigate to the **Monitor**, **Map**, or **AI Assistant**.
     """)
 
 with col2:
@@ -47,4 +52,6 @@ with col2:
         st.warning("⚠️ Deep Learning: INITIALIZING... (Run Training)")
     
     st.markdown("---")
-    st.caption("Final Year Project | Phase 3 Implementation")
+    st.caption("Final Year Project")
+
+

@@ -57,10 +57,18 @@ with col_display:
         with st.spinner("Intercepting Packet & Analyzing..."):
             time.sleep(0.6) # Sim delay
             
+            # --- MODEL SELECTION & PREPARATION ---
+            if model_choice == "Deep Learning (1D-CNN)" and phase3:
+                active_encoders = phase3['encoders']
+                active_scaler = phase3['scaler']
+                active_cols = phase3['columns']
+            else:
+                active_encoders = encoders
+                active_scaler = scaler
+                active_cols = columns
+
             # --- PACKET GENERATION LOGIC ---
-            # We construct a dataframe matching 'columns'
-            # Note: columns includes 'label', we drop it for input
-            input_cols = [c for c in columns if c != 'label' and c != 'difficulty']
+            input_cols = [c for c in active_cols if c != 'label' and c != 'difficulty']
             input_data = pd.DataFrame(0, index=[0], columns=input_cols)
             
             # Defaults for categorical
@@ -99,22 +107,22 @@ with col_display:
                     # Fallback to mode or 0 if unseen
                     return 0
             
-            # Fill Data
-            # Note: This requires 'encoders' to have these keys. 
-            # If phase 3 encoders differ, we might need mapping. 
-            # Assuming Phase 2 encoders for RF-BPNN and Phase 3 for CNN logic if different.
-            # For simplicity, we use system['encoders'] for generation.
-            
-            input_data['protocol_type'] = safe_transform(encoders, 'protocol_type', p_type)
-            input_data['service'] = safe_transform(encoders, 'service', svc)
-            input_data['flag'] = safe_transform(encoders, 'flag', flg)
+            # Fill Data using ACTIVE encoders
+            if 'protocol_type' in input_data.columns:
+                input_data['protocol_type'] = safe_transform(active_encoders, 'protocol_type', p_type)
+            if 'service' in input_data.columns:
+                input_data['service'] = safe_transform(active_encoders, 'service', svc)
+            if 'flag' in input_data.columns:
+                input_data['flag'] = safe_transform(active_encoders, 'flag', flg)
+                
             input_data['src_bytes'] = src
             input_data['dst_bytes'] = dst
             input_data['count'] = b_cnt
             input_data['serror_rate'] = sev_rate
             
-            # Add some noise to others
-            input_data['same_srv_rate'] = np.random.random()
+            # Add some noise/defaults to others if they exist
+            if 'same_srv_rate' in input_data.columns:
+                input_data['same_srv_rate'] = np.random.random()
             
             # --- PREDICTION ---
             pred_label = 0
@@ -122,7 +130,7 @@ with col_display:
             
             if model_choice == "Hybrid RF-BPNN":
                 # RF-BPNN Pipeline
-                input_scaled = scaler.transform(input_data)
+                input_scaled = active_scaler.transform(input_data)
                 rf_prob = rf_model.predict_proba(input_scaled)[:, 1].reshape(-1, 1)
                 hybrid_input = np.hstack((input_scaled, rf_prob))
                 pred_label = bpnn_model.predict(hybrid_input)[0]
@@ -132,13 +140,9 @@ with col_display:
                 if cnn_model is None:
                     st.error("Deep Model not loaded. Switch to Hybrid.")
                 else:
-                    if phase3:
-                        p3_scaler = phase3['scaler']
-                        input_scaled = p3_scaler.transform(input_data)
-                    else:
-                        input_scaled = scaler.transform(input_data)
+                    input_scaled = active_scaler.transform(input_data)
                         
-                    # MLP Prediction (No Reshape needed)
+                    # MLP Prediction
                     prob = cnn_model.predict_proba(input_scaled)[0][1]
                     pred_label = 1 if prob > 0.5 else 0
                     conf = prob * 100 if pred_label == 1 else (1-prob)*100
